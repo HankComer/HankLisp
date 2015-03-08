@@ -22,7 +22,7 @@ listParse :: Parser [LToken]
 listParse (")":rest) = Just ([], rest)
 listParse text = case ultimateParse text of
     Just (thing, rest) -> Just $ prependFst thing (listParse rest)
-    Nothing -> Nothing
+    Nothing -> Just ([], text)
 
 
 
@@ -55,12 +55,16 @@ parseApp ("(":"defun":name:rest) =
 parseApp ("(":"quote":stuff) = case listParse stuff of
     Just (thing, rest) -> Just (LList (LAtom "quote" : thing), rest)
 
-parseApp ("(":"(":rest) = case listParse rest of
-    Just (thing, rest1) -> case listParse rest1 of
-        Just (thing1, rest2) -> Just (LList [LList thing, LList thing1], rest2)
+parseApp ("(":"(":rest) = case parseApp ("(":rest) of
+    Just (LList thing, rest1) -> case listParse rest1 of
+        Just (thing1, rest2) -> Just (LList (LList thing:thing1), rest2)
+    Just (thing, rest1) -> error $ "check parseApp, the one that matches (( " ++ show thing
+
+parseApp ("(":")":rest) = Just (LList [], rest)
 
 parseApp ("(":name:args) = case listParse args of
     Just (thing, rest) -> Just (LList (LAtom name : thing), rest)
+    Nothing -> Nothing
 
 parseApp _ = Nothing
 
