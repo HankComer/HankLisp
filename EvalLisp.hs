@@ -37,6 +37,7 @@ tok2Val :: LToken -> LValue
 tok2Val (LAtom a) = Atom a
 tok2Val (LInt i) = Number i
 tok2Val (LList ts) = Cons (map tok2Val ts)
+tok2Val (LString s) = Str s
 
 toks2Vals = map tok2Val
 
@@ -68,73 +69,20 @@ inscope env name = case lookup name env of
     Just _ -> True
     Nothing -> False
 
-lPlus :: LFunctionT
-lPlus env = fmap (\args -> case args of
-    [] -> Number 0
-    nums ->  foldr (\(Number x) (Number y) -> Number (x + y)) (Number 0) nums)
-
-lTimes :: LFunctionT
-lTimes env = fmap (\args -> case args of
-    [] -> Number 1
-    nums -> foldr (\(Number x) (Number y) -> Number (x * y)) (Number 1) nums)
-
-lEval :: LFunctionT
-lEval env arghs = arghs >>= (\a -> case a of
-    thing:_ -> eval env thing)
-
-
-lCar :: LFunctionT
-lCar env = fmap (\stuff -> case stuff of
-    (Cons (a:as):rest) -> a
-    (a:rest) -> a)
-
-lCdr :: LFunctionT
-lCdr env = fmap (\stuff -> case stuff of
-    (Cons (a:as):rest) -> Cons as
-    (a:rest) -> Cons rest)
-
-lCons :: LFunctionT
-lCons env = fmap Cons
-
-lGetLine :: LFunctionT
-lGetLine env args = fmap Str getLine
-
-lPutLine :: LFunctionT
-lPutLine env args = args >>= (\args' -> fmap (const nil) $ putStrLn (unwords $ map extract args'))
-
-lEq :: LFunctionT
-lEq env = fmap (\args ->
-    let
-        blah (a:b:[]) = a == b
-        blah (a:b:xs) = (a == b) && (blah (b:xs))
-    in case blah args of
-        True -> Atom "T"
-        False -> Cons [])
-
-printDir :: Environment -> IO ()
-printDir env = putStrLn (unlines $ map (\(x, y) -> x ++ " " ++ show y) env)
 
     
 
-stdEnv :: Environment
-stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
-    ("*", LFunction lTimes "(* x1 x2... xn) -> product of x1 thru xn"),
-    ("eval", LFunction lEval "(eval something) -> unquoted 'something'"),
-    ("car", LFunction lCar "(car a b) -> a, or (car (a b)) -> a"),
-    ("cdr", LFunction lCdr "(cdr a b) -> (b), or (cdr (a b)) -> (b)"),
-    ("cons", LFunction lCons "(cons x1 x2... xn) -> (x1 x2... xn), not evaluating"),
-    ("get", LFunction lGetLine "(get) -> a single string from input"),
-    ("putLn", LFunction lPutLine "(putLn x1 x2... xn) -> writes x1 x2.. xn to stdout, separated by spaces"),
-    ("nil", Cons []),
-    ("=", LFunction lEq "(= x1 x2... xn) -> T if all are equal, else nil"),
-    ("eq", LFunction lEq "(eq x1 x2... xn) -> T if all are equal, else nil")]
+
 
 isTrue :: Environment -> LValue -> IO Bool
 isTrue env (Cons []) = return False
+isTrue env (Cons a) = return True
 isTrue env (Number 0) = return False
 isTrue env (Number _) = return True
 isTrue env (Atom "nil") = return False
-isTrue env thing = lispEval(env, thing) >>= \(_, y) -> isTrue env y
+isTrue env thing = lispEval(env, thing) >>= (\(_, y) -> case y of
+    (Atom _) -> return True
+    a -> isTrue env a)
 
 
 eval :: Environment -> LValue -> IO LValue
@@ -181,39 +129,6 @@ flipListIO [] = return []
 execExpr :: IO Environment -> LValue -> IO Environment
 execExpr foo val = foo >>= \env -> fmap fst $ lispEval (env, val)
 
-repl = repl' "stdin" stdEnv
-
-repl' :: String -> Environment -> IO ()
-repl' fname env = do
-    putStr "hank-lisp> "
-    line <- getLine
-    handleCommands (env, fname) line (\str -> do
-            let str' = (parseString str)
-            (env', value) <- if null str' then return (env, nil) else lispEval(env, tok2Val $ head str')
-            case value == nil of
-                True -> repl' fname env'
-                False -> do
-                    print value
-                    repl' fname $ ("it", value) : env')
-
-loadForRepl :: String -> IO ()
-loadForRepl fname = do
-    text <- readFile fname
-    let trees = toks2Vals $ parseString text
-    let env = foldl execExpr (return stdEnv) trees
-    env >>= (repl' fname)
-
-
-handleCommands :: (Environment, String) -> String -> (String -> IO ()) -> IO ()
-handleCommands (env, fname) str alt | null str = alt str
-    | head str == ':' = case tail str of
-        [] -> putStrLn "unrecognized command" >> alt ""
-        "d" -> printDir env >> alt ""
-        "dir" -> printDir env >> alt ""
-        "reload" -> putStrLn "reloaded files" >> if (fname == "stdin") then repl else loadForRepl fname
-        "r" -> putStrLn "reloaded files" >> if (fname == "stdin") then repl else loadForRepl fname
-        a -> putStrLn ("unknown command " ++ a) >> alt ""
-    | otherwise = alt str
 
 
 reverseTuple (a, b) = (b, a)

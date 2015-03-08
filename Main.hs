@@ -1,5 +1,5 @@
 module Main where
-import EvalLisp
+import Builtins
 import System.Environment (getArgs)
 
 main :: IO ()

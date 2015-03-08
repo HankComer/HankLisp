@@ -29,10 +29,10 @@ listParse text = case ultimateParse text of
 parseApp :: Parser LToken
 parseApp ("(":"if":rest) =
     let
-        Just (cond, rest1) = listParse (tail rest)
-        Just (t, rest2) = listParse (tail rest1)
-        Just (f, rest3) = listParse (tail rest2)
-    in Just (LList [LAtom "if", LList cond, LList t, LList f], rest3)
+        Just (cond, rest1) = ultimateParse rest
+        Just (t, rest2) = ultimateParse rest1
+        Just (f, rest3) = ultimateParse rest2
+    in Just (LList [LAtom "if", cond, t, f], rest3)
     
 parseApp ("(":"define":name:body) = case listParse body of 
     Just (stuff, rest) -> Just (LList (LAtom "define" : LAtom name : stuff), rest)
