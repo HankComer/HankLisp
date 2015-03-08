@@ -70,11 +70,7 @@ inscope env name = case lookup name env of
     Nothing -> False
 
 
-resolve :: Environment -> String -> LValue
-resolve env str = case lookup str env of
-    Just (Atom a) -> if a == str then resolve (tail env) str else Atom a
-    Just other -> other
-    Nothing -> Atom str
+
 
 
 
@@ -85,7 +81,7 @@ isTrue env arg =  (eval env arg) >>= (isTrue' env) where
     isTrue' env (Number 0) = return False
     isTrue' env (Number _) = return True
     isTrue' env thing = lispEval(env, thing) >>= (\(_, y) -> case y of
-        (Atom a) -> if inscope env a then isTrue env (resolve env a) else return True
+        (Atom a) -> if inscope env a then isTrue env (unsafeLookup a env) else return True
         a -> isTrue env a)
 
 
