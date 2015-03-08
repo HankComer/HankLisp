@@ -34,6 +34,7 @@ handleCommands (env, fname) str alt | null str = alt str
         "dir" -> printDir env >> alt ""
         "reload" -> putStrLn "reloaded files" >> if (fname == "stdin") then repl else loadForRepl fname
         "r" -> putStrLn "reloaded files" >> if (fname == "stdin") then repl else loadForRepl fname
+        "q" -> putStrLn "Leaving HankLisp."
         a -> putStrLn ("unknown command " ++ a) >> alt ""
     | otherwise = alt str
 
@@ -77,6 +78,7 @@ lEval env arghs = arghs >>= (\a -> case a of
 
 lCar :: LFunctionT
 lCar env = fmap (\stuff -> case stuff of
+    (a:rest:[]) -> a
     (Cons (a:as):rest) -> a
     (a:rest) -> a)
 

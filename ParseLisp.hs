@@ -40,7 +40,7 @@ parseApp ("(":"define":name:body) = case listParse body of
 parseApp ("(":"assign":name:body) = case listParse body of 
     Just (stuff, rest) -> Just (LList (LAtom "assign" : LAtom name : stuff), rest)
 
-parseApp ("(":"lambda":name:rest) =
+parseApp ("(":"lambda":rest) =
     let
         Just (args, rest1) = listParse (tail rest)
         Just (body, rest2) = listParse (tail rest1)

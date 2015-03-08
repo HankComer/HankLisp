@@ -41,7 +41,7 @@ tok2Val (LString s) = Str s
 
 toks2Vals = map tok2Val
 
-nil = Atom "nil"
+nil = Cons []
 
 unsafeLookup :: String -> Environment -> LValue
 unsafeLookup a b = case lookup a b of
@@ -59,7 +59,7 @@ deref env (Number i) = Number i
 createFunction :: Environment -> LValue -> LValue -> LValue
 createFunction env (Cons args) body = LFunction lispFunction metaData where
     lispFunction :: LFunctionT
-    lispFunction env args' = args' >>= (\args''-> fmap snd $ lispEval(zip (map extract args) args'' ++ env, body))
+    lispFunction env' args' = args' >>= (\args''-> fmap snd $ lispEval(zip (map extract args) args'' ++ env', body))
     metaData :: String
     metaData = show args ++ " -> " ++ show body
 
@@ -70,19 +70,23 @@ inscope env name = case lookup name env of
     Nothing -> False
 
 
-    
+resolve :: Environment -> String -> LValue
+resolve env str = case lookup str env of
+    Just (Atom a) -> if a == str then resolve (tail env) str else Atom a
+    Just other -> other
+    Nothing -> Atom str
 
 
 
 isTrue :: Environment -> LValue -> IO Bool
-isTrue env (Cons []) = return False
-isTrue env (Cons a) = return True
-isTrue env (Number 0) = return False
-isTrue env (Number _) = return True
-isTrue env (Atom "nil") = return False
-isTrue env thing = lispEval(env, thing) >>= (\(_, y) -> case y of
-    (Atom _) -> return True
-    a -> isTrue env a)
+isTrue env arg =  (eval env arg) >>= (isTrue' env) where
+    isTrue' env (Cons []) = return False
+    isTrue' env (Cons a) = return True
+    isTrue' env (Number 0) = return False
+    isTrue' env (Number _) = return True
+    isTrue' env thing = lispEval(env, thing) >>= (\(_, y) -> case y of
+        (Atom a) -> if inscope env a then isTrue env (resolve env a) else return True
+        a -> isTrue env a)
 
 
 eval :: Environment -> LValue -> IO LValue
@@ -117,7 +121,7 @@ lispEval :: (Environment, LValue) -> IO (Environment, LValue)
 lispEval (env, Cons (Atom "quote":thing:[])) = return (env, thing)
 lispEval (env, Cons (Atom "quote":things)) = return (env, Cons things)
 lispEval (env, Cons thing) = listDo env thing
-lispEval (env, Atom a) | inscope env a = lispEval(env, deref env $ Atom a)
+lispEval (env, Atom a) | inscope env a = lispEval(env, unsafeLookup a env)
     | otherwise = return (env, Atom a)
 lispEval (env, a) = return (env, a)
 
