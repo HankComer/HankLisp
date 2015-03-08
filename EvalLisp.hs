@@ -42,17 +42,17 @@ toks2Vals = map tok2Val
 
 nil = Atom "nil"
 
+unsafeLookup :: String -> Environment -> LValue
 unsafeLookup a b = case lookup a b of
-    Just a -> a
-    Nothing -> error $ show a ++ " not in scope"
+    Just r -> r
+    Nothing -> Atom a
 
 updateEnvironment :: Environment -> (String, LValue) -> Environment
 updateEnvironment = flip (:)
 
 
 deref :: Environment -> LValue -> LValue
-deref env (Atom name) | inscope env name = unsafeLookup name env
-    | otherwise = Atom name
+deref env (Atom name) = unsafeLookup name env
 deref env (Number i) = Number i
 
 createFunction :: Environment -> LValue -> LValue -> LValue
@@ -82,10 +82,14 @@ lEval env arghs = arghs >>= (\a -> case a of
 
 
 lCar :: LFunctionT
-lCar env = fmap (\(Cons (a:as):args) -> a)
+lCar env = fmap (\stuff -> case stuff of
+    (Cons (a:as):rest) -> a
+    (a:rest) -> a)
 
 lCdr :: LFunctionT
-lCdr env = fmap (\(Cons (a:as):args) -> Cons as)
+lCdr env = fmap (\stuff -> case stuff of
+    (Cons (a:as):rest) -> Cons as
+    (a:rest) -> Cons rest)
 
 lCons :: LFunctionT
 lCons env = fmap Cons
@@ -139,17 +143,17 @@ listDo env (Atom "define":Atom name:body:[]) = return (updateEnvironment env (na
 
 listDo env (Atom "if":cond:thing1:thing2:[]) = (isTrue env cond) >>= \p -> if p then lispEval(env, thing1) else lispEval(env, thing2)
 
-listDo env (Atom "quote":stuff) = do
-    putStrLn $ "evaluating " ++ show stuff
-    return (env, Cons (Atom "quote":stuff))
+listDo env (Atom "quote":stuff) = return (env, Cons (Atom "quote":stuff))
 listDo env (Atom "lambda":args:body:[]) = return (env, createFunction env args body)
 listDo env (Atom "assign":Atom name:body:[]) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), thing)) $ lispEval(env, body)
 listDo env (Atom name:stuff) = case unsafeLookup name env of
     (LFunction func) -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) stuff))
        
-    a -> return (env, a)
+    a -> return (env, Cons (a:stuff))
 
-listDo env (Cons stuff:rest) = listDo env stuff >>= \(_, LFunction func) -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) rest))
+listDo env (Cons stuff:rest) = listDo env stuff >>= (\(_, thing) -> case thing of
+    LFunction func -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) rest))
+    a -> return (env, Cons (a:rest)))
 listDo env (Number i:rest) = return (env, Cons (Number i : rest))
 listDo env [] = return (env, Cons [])
 listDo env a = error $ "wtf " ++ show a
@@ -174,9 +178,8 @@ execExpr foo val = foo >>= \env -> fmap fst $ lispEval (env, val)
 repl = repl' stdEnv
 
 repl' env = do
-    --putStr "hank-lisp> "
-    str <- getLine
     putStr "hank-lisp> "
+    str <- getLine
     let str' = (parseString str)
     (env', value) <- if null str' then return (env, nil) else lispEval(env, tok2Val $ head str')
     case value == nil of
