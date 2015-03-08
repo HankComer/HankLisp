@@ -11,14 +11,14 @@ type LFunctionT = Environment -> IO [LValue] -> IO LValue
 data LValue = Atom String |
     Number Integer |
     Cons [LValue] |
-    LFunction LFunctionT |
+    LFunction LFunctionT String |
     Str String
 
 instance Show LValue where
     show (Atom str) = str
     show (Number i) = show i
     show (Cons stuff) = "S" ++ show stuff
-    show (LFunction func) = "<function>"
+    show (LFunction func meta) = "function " ++ meta
     show (Str str) = show str
 
 instance Eq LValue where
@@ -56,9 +56,11 @@ deref env (Atom name) = unsafeLookup name env
 deref env (Number i) = Number i
 
 createFunction :: Environment -> LValue -> LValue -> LValue
-createFunction env (Cons args) body = LFunction lispFunction where
+createFunction env (Cons args) body = LFunction lispFunction metaData where
     lispFunction :: LFunctionT
     lispFunction env args' = args' >>= (\args''-> fmap snd $ lispEval(zip (map extract args) args'' ++ env, body))
+    metaData :: String
+    metaData = show args ++ " -> " ++ show body
 
 
 
@@ -108,20 +110,24 @@ lEq env = fmap (\args ->
     in case blah args of
         True -> Atom "T"
         False -> Cons [])
+
+printDir :: Environment -> IO ()
+printDir env = putStrLn (unlines $ map (\(x, y) -> x ++ " " ++ show y) env)
+
     
 
 stdEnv :: Environment
-stdEnv = [("+", LFunction lPlus),
-    ("*", LFunction lTimes),
-    ("eval", LFunction lEval),
-    ("car", LFunction lCar),
-    ("cdr", LFunction lCdr),
-    ("cons", LFunction lCons),
-    ("get", LFunction lGetLine),
-    ("putLn", LFunction lPutLine),
+stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
+    ("*", LFunction lTimes "(* x1 x2... xn) -> product of x1 thru xn"),
+    ("eval", LFunction lEval "(eval something) -> unquoted 'something'"),
+    ("car", LFunction lCar "(car a b) -> a, or (car (a b)) -> a"),
+    ("cdr", LFunction lCdr "(cdr a b) -> (b), or (cdr (a b)) -> (b)"),
+    ("cons", LFunction lCons "(cons x1 x2... xn) -> (x1 x2... xn), not evaluating"),
+    ("get", LFunction lGetLine "(get) -> a single string from input"),
+    ("putLn", LFunction lPutLine "(putLn x1 x2... xn) -> writes x1 x2.. xn to stdout, separated by spaces"),
     ("nil", Cons []),
-    ("=", LFunction lEq),
-    ("eq", LFunction lEq)]
+    ("=", LFunction lEq "(= x1 x2... xn) -> T if all are equal, else nil"),
+    ("eq", LFunction lEq "(eq x1 x2... xn) -> T if all are equal, else nil")]
 
 isTrue :: Environment -> LValue -> IO Bool
 isTrue env (Cons []) = return False
@@ -147,12 +153,12 @@ listDo env (Atom "quote":stuff) = return (env, Cons (Atom "quote":stuff))
 listDo env (Atom "lambda":args:body:[]) = return (env, createFunction env args body)
 listDo env (Atom "assign":Atom name:body:[]) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), thing)) $ lispEval(env, body)
 listDo env (Atom name:stuff) = case unsafeLookup name env of
-    (LFunction func) -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) stuff))
+    (LFunction func _) -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) stuff))
        
     a -> return (env, Cons (a:stuff))
 
 listDo env (Cons stuff:rest) = listDo env stuff >>= (\(_, thing) -> case thing of
-    LFunction func -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) rest))
+    LFunction func _ -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) rest))
     a -> return (env, Cons (a:rest)))
 listDo env (Number i:rest) = return (env, Cons (Number i : rest))
 listDo env [] = return (env, Cons [])
@@ -175,26 +181,39 @@ flipListIO [] = return []
 execExpr :: IO Environment -> LValue -> IO Environment
 execExpr foo val = foo >>= \env -> fmap fst $ lispEval (env, val)
 
-repl = repl' stdEnv
+repl = repl' "stdin" stdEnv
 
-repl' env = do
+repl' :: String -> Environment -> IO ()
+repl' fname env = do
     putStr "hank-lisp> "
-    str <- getLine
-    let str' = (parseString str)
-    (env', value) <- if null str' then return (env, nil) else lispEval(env, tok2Val $ head str')
-    case value == nil of
-        True -> repl' env'
-        False -> do
-            print value
-            repl' $ ("it", value) : env'
+    line <- getLine
+    handleCommands (env, fname) line (\str -> do
+            let str' = (parseString str)
+            (env', value) <- if null str' then return (env, nil) else lispEval(env, tok2Val $ head str')
+            case value == nil of
+                True -> repl' fname env'
+                False -> do
+                    print value
+                    repl' fname $ ("it", value) : env')
 
 loadForRepl :: String -> IO ()
 loadForRepl fname = do
     text <- readFile fname
     let trees = toks2Vals $ parseString text
     let env = foldl execExpr (return stdEnv) trees
-    env >>= repl'
+    env >>= (repl' fname)
 
+
+handleCommands :: (Environment, String) -> String -> (String -> IO ()) -> IO ()
+handleCommands (env, fname) str alt | null str = alt str
+    | head str == ':' = case tail str of
+        [] -> putStrLn "unrecognized command" >> alt ""
+        "d" -> printDir env >> alt ""
+        "dir" -> printDir env >> alt ""
+        "reload" -> putStrLn "reloaded files" >> if (fname == "stdin") then repl else loadForRepl fname
+        "r" -> putStrLn "reloaded files" >> if (fname == "stdin") then repl else loadForRepl fname
+        a -> putStrLn ("unknown command " ++ a) >> alt ""
+    | otherwise = alt str
 
 
 reverseTuple (a, b) = (b, a)
