@@ -138,7 +138,17 @@ lFlat env = fmap (\args -> Cons $ concat (map toList args)) where
     toList :: LValue -> [LValue]
     toList (Cons stuff) = stuff
     toList a = [a]
+    
+lSubStr :: LFunctionT
+lSubStr env = fmap (\args -> case args of
+    (Str str):(Number start):[] -> subStrSafe str (fromInteger start) (length str)
+    (Str str):(Number start):(Number end):[] -> subStrSafe str (fromInteger start) (fromInteger end)
+    a -> Str $ "Failure: bad args given")
 
+subStrSafe :: String -> Int -> Int -> LValue
+subStrSafe str start end = if (start > -1) && (end >= start) && (end <= length str)
+    then Str $ drop start (take end str)
+    else Str $ "Failure: string indices out of bounds: " ++ (show start) ++ " " ++ (show end) ++ " " ++ (show $ length str)
 
 
 printDir :: Environment -> IO ()
