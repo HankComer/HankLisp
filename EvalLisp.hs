@@ -12,7 +12,8 @@ data LValue = Atom String |
     Number Integer |
     Cons [LValue] |
     LFunction LFunctionT String |
-    Str String
+    Str String |
+    Nil
 
 instance Show LValue where
     show (Atom str) = str
