@@ -143,7 +143,7 @@ lFlat env = fmap (\args -> Cons $ concat (map toList args)) where
 lSubStr :: LFunctionT
 lSubStr env = fmap (\args -> case args of
     (Str str):(Number start):[] -> subStrSafe str (fromInteger start) (length str)
-    (Str str):(Number start):(Number end):[] -> subStrSafe str (fromInteger start) (fromInteger end)
+    (Str str):(Number start):(Number end):rest -> subStrSafe str (fromInteger start) (fromInteger end)
     a -> Str $ "Failure: bad args given")
 
 subStrSafe :: String -> Int -> Int -> LValue
