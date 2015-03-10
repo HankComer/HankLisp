@@ -27,6 +27,14 @@ instance Eq LValue where
     (Cons a) == (Cons b) = a == b
     (Str a) == (Str b) = a == b
     _ == _ = False
+    
+instance Ord LValue where
+    (Cons a) <= (Cons b) = a <= b
+    (Cons a) <= b = a <= [b]
+    a <= (Cons b) = [a] <= b
+    (LFunction _ _) <= a = False
+    a <= (LFunction _ _) = False
+    a <= b = (extract a) <= (extract b)
 
 extract :: LValue -> String
 extract (Atom a) = a
