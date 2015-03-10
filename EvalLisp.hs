@@ -97,7 +97,7 @@ listDo env (Atom "define":Atom name:body:[]) = return (updateEnvironment env (na
 
 listDo env (Atom "if":cond:thing1:thing2:[]) = (isTrue env cond) >>= \p -> if p then lispEval(env, thing1) else lispEval(env, thing2)
 
-listDo env (Atom "quote":stuff) = return (env, Cons (Atom "quote":stuff))
+listDo env (Atom "quote":stuff) = return (env, putInto stuff)
 listDo env (Atom "lambda":args:body:[]) = return (env, createFunction env args body)
 listDo env (Atom "assign":Atom name:body:[]) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), thing)) $ lispEval(env, body)
 listDo env (Atom name:stuff) = case unsafeLookup name env of
@@ -129,6 +129,8 @@ flipListIO [] = return []
 execExpr :: IO Environment -> LValue -> IO Environment
 execExpr foo val = foo >>= \env -> fmap fst $ lispEval (env, val)
 
-
+putInto :: [LValue] -> LValue
+putInto (arg:[]) = arg
+putInto (arg:args) = Cons (arg:args)
 
 reverseTuple (a, b) = (b, a)
