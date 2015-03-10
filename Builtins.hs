@@ -155,6 +155,17 @@ subStrSafe str start end = if (start > -1) && (end >= start) && (end <= length s
 printDir :: Environment -> IO ()
 printDir env = putStrLn (unlines $ map (\(x, y) -> x ++ " " ++ show y) env)
 
+lLessEq :: LFunctionT
+lLessEq env = fmap (\args -> case isSorted args of
+    True -> Atom "T"
+    False -> nil)
+
+--Taken from Data.List.Ordered
+isSorted :: Ord a => [a] -> Bool
+isSorted [] = True
+isSorted (_:[]) = True
+isSorted (x:y:zs) = (x <= y) && isSorted (y:zs)
+
 
 
 lReadFile :: LFunctionT
