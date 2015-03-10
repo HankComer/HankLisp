@@ -108,7 +108,9 @@ lEq env = fmap (\args ->
         False -> Cons [])
 
 lConcat :: LFunctionT
-lConcat env = fmap (\args -> Str $ concat (map extract args))
+lConcat env = fmap (\args -> case args of
+    (Cons stuff:[]) -> Str $ concat (map extract stuff)
+    _ -> Str $ concat (map extract args))
 
 lNull :: LFunctionT
 lNull env = fmap (\args -> case args of
