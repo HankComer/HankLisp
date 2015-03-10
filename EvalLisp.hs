@@ -10,30 +10,45 @@ type LFunctionT = Environment -> IO [LValue] -> IO LValue
 
 data LValue = Atom String |
     Number Integer |
-    Cons [LValue] |
+    LValue :. LValue |
     LFunction LFunctionT String |
     Str String |
     Nil
 
+cons :: LValue -> LValue -> LValue
+cons a b = a :. b
+
+lispList :: [LValue] -> LValue
+lispList (a:[]) = a :. Nil
+lispList (a:as) = a :. lispList as
+
+haskList :: LValue -> [LValue]
+haskList (a:.Nil) = a:[]
+haskList (a:.b) = a : haskList b
+
 instance Show LValue where
     show (Atom str) = str
     show (Number i) = show i
-    show (Cons stuff) = "S" ++ show stuff
+    show Nil = ""
+    show (a:.b) = "(" ++ (unwords $ map show (haskList (a:.b))) ++ ")"
     show (LFunction func meta) = "function " ++ meta
     show (Str str) = show str
 
 instance Eq LValue where
     (Atom a) == (Atom b) = a == b
     (Number i) == (Number j) = i == j
-    (Cons a) == (Cons b) = a == b
+    (a:.b) == (c:.d) = (a == c) 
     (Str a) == (Str b) = a == b
     _ == _ = False
     
 instance Ord LValue where
-    (Cons a) <= (Cons b) = a <= b
-    (Cons a) <= b = a <= [b]
-    a <= (Cons b) = [a] <= b
-    (LFunction _ _) <= a = False
+    (a:._) <= (b:._) = a <= b
+    (a:._) <= b = a <= b
+    Nil <= Nil = True
+    Nil <= a = True
+    a <= Nil = False
+    a <= (b:._) = a <= b
+    (LFunction _ _) <= a = True
     a <= (LFunction _ _) = False
     a <= b = (extract a) <= (extract b)
 
@@ -45,12 +60,12 @@ extract (Number n) = show n
 tok2Val :: LToken -> LValue
 tok2Val (LAtom a) = Atom a
 tok2Val (LInt i) = Number i
-tok2Val (LList ts) = Cons (map tok2Val ts)
+tok2Val (LList ts) = lispList (map tok2Val ts)
 tok2Val (LString s) = Str s
 
 toks2Vals = map tok2Val
 
-nil = Cons []
+nil = Nil
 
 unsafeLookup :: String -> Environment -> LValue
 unsafeLookup a b = case lookup a b of
@@ -66,7 +81,8 @@ deref env (Atom name) = unsafeLookup name env
 deref env (Number i) = Number i
 
 createFunction :: Environment -> LValue -> LValue -> LValue
-createFunction env (Cons args) body = LFunction lispFunction metaData where
+createFunction env (a:.b) body = LFunction lispFunction metaData where
+    args = haskList (a:.b)
     lispFunction :: LFunctionT
     lispFunction env' args' = args' >>= (\args''-> fmap snd $ lispEval(zip (map extract args) args'' ++ env', body))
     metaData :: String
@@ -80,13 +96,14 @@ inscope env name = case lookup name env of
 
 
 
-
+lmap f (a:.Nil) = (f a :. Nil)
+lmap f (a:.b) = (f a :. lmap f b)
 
 
 isTrue :: Environment -> LValue -> IO Bool
 isTrue env arg =  (eval env arg) >>= (isTrue' env) where
-    isTrue' env (Cons []) = return False
-    isTrue' env (Cons a) = return True
+    isTrue' env (Nil) = return False
+    isTrue' env (a:.b) = return True
     isTrue' env (Number 0) = return False
     isTrue' env (Number _) = return True
     isTrue' env thing = lispEval(env, thing) >>= (\(_, y) -> case y of
@@ -95,39 +112,36 @@ isTrue env arg =  (eval env arg) >>= (isTrue' env) where
 
 
 eval :: Environment -> LValue -> IO LValue
---eval env (Cons (Atom "quote":thing:[])) = return thing
---eval env (Cons (Atom "quote":things)) = return $ Cons things
 eval env thing = fmap snd $ lispEval(env, thing)
 
 
 
-listDo :: Environment -> [LValue] -> IO (Environment, LValue)
-listDo env (Atom "define":Atom name:body:[]) = return (updateEnvironment env (name, body), nil)
+listDo :: Environment -> LValue -> IO (Environment, LValue)
+listDo env (Atom "define":.Atom name:.body:.Nil) = return (updateEnvironment env (name, body), nil)
 
-listDo env (Atom "if":cond:thing1:thing2:[]) = (isTrue env cond) >>= \p -> if p then lispEval(env, thing1) else lispEval(env, thing2)
+listDo env (Atom "if":.cond:.thing1:.thing2:.Nil) = (isTrue env cond) >>= \p -> if p then lispEval(env, thing1) else lispEval(env, thing2)
 
-listDo env (Atom "quote":stuff) = return (env, putInto stuff)
-listDo env (Atom "lambda":args:body:[]) = return (env, createFunction env args body)
-listDo env (Atom "assign":Atom name:body:[]) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), thing)) $ lispEval(env, body)
-listDo env (Atom name:stuff) = case unsafeLookup name env of
-    (LFunction func _) -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) stuff))
+listDo env (Atom "quote":.stuff) = return (env, stuff)
+listDo env (Atom "lambda":.args:.body:.Nil) = return (env, createFunction env args body)
+listDo env (Atom "assign":.Atom name:.body:.Nil) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), thing)) $ lispEval(env, body)
+listDo env (Atom name:.stuff) = case unsafeLookup name env of
+    (LFunction func _) -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) (haskList stuff)))
        
-    a -> return (env, Cons (a:stuff))
+    a -> putStrLn "a nonexistent function got called?" >> return (env, (a:.stuff))
 
-listDo env (Cons stuff:rest) = listDo env stuff >>= (\(_, thing) -> case thing of
-    LFunction func _ -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) rest))
-    a -> return (env, Cons (a:rest)))
-listDo env (Number i:rest) = return (env, Cons (Number i : rest))
-listDo env [] = return (env, Cons [])
+listDo env ((argh:.blah):.rest) = listDo env (argh:.blah) >>= (\(_, thing) -> case thing of
+    LFunction func _ -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) (haskList rest)))
+    a -> return (env, (a:.rest)))
+listDo env (Number i:.rest) = return (env, (Number i :. rest))
+listDo env Nil = return (env, Nil)
 listDo env a = error $ "wtf " ++ show a
 
 
 lispEval :: (Environment, LValue) -> IO (Environment, LValue)
-lispEval (env, Cons (Atom "quote":thing:[])) = return (env, thing)
-lispEval (env, Cons (Atom "quote":things)) = return (env, Cons things)
-lispEval (env, Cons thing) = listDo env thing
+lispEval (env, (Atom "quote":.thing)) = return (env, thing)
 lispEval (env, Atom a) | inscope env a = lispEval(env, unsafeLookup a env)
     | otherwise = return (env, Atom a)
+lispEval (env, (thing:.things)) = listDo env (thing:.things)
 lispEval (env, a) = return (env, a)
 
 
@@ -138,8 +152,8 @@ flipListIO [] = return []
 execExpr :: IO Environment -> LValue -> IO Environment
 execExpr foo val = foo >>= \env -> fmap fst $ lispEval (env, val)
 
-putInto :: [LValue] -> LValue
-putInto (arg:[]) = arg
-putInto (arg:args) = Cons (arg:args)
+--putInto :: [LValue] -> LValue
+--putInto (arg:[]) = arg
+--putInto (arg:args) = Cons (arg:args)
 
 reverseTuple (a, b) = (b, a)
