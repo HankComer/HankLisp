@@ -60,7 +60,8 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("toString", LFunction lToString "(toString arg) -> a string for arg. Not reversable."),
     ("flat", LFunction lFlat "(flat a1 a2... an) -> a list of all the arguments, with lists flattened"),
     ("null", LFunction lNull "(null arg) -> whether arg is null"),
-    ("not", LFunction lNot "(not arg) -> logical negation of arg")]
+    ("not", LFunction lNot "(not arg) -> logical negation of arg"),
+    ("substr", LFunction lSubStr "(substr str start [end]) -> the string from index start onwards to end")]
 
 
 lPlus :: LFunctionT
