@@ -22,9 +22,11 @@ loadForRepl :: String -> IO ()
 loadForRepl fname = do
     text <- readFile fname
     let trees = toks2Vals $ parseString text
-    let env = foldl execExpr (return stdEnv) trees
+    let env = execBlocks stdEnv trees
     env >>= (repl' fname)
 
+execBlocks :: Environment -> [LValue] -> IO Environment
+execBlocks env trees = foldl execExpr (return env) trees
 
 handleCommands :: (Environment, String) -> String -> (String -> IO ()) -> IO ()
 handleCommands (env, fname) str alt | null str = alt str
