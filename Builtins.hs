@@ -62,7 +62,8 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("null", LFunction lNull "(null arg) -> whether arg is null"),
     ("not", LFunction lNot "(not arg) -> logical negation of arg"),
     ("substr", LFunction lSubStr "(substr str start [end]) -> the string from index start onwards to end"),
-    ("<=", LFunction lLessEq "(<= x1 x2 ... xn) -> whether x1 <= x2 <= ... xn")]
+    ("<=", LFunction lLessEq "(<= x1 x2 ... xn) -> whether x1 <= x2 <= ... xn"),
+    ("-", LFunction lMinus "(- x1 x2 ... xn) -> foldr (-) 0 [x1 x2... xn]")]
 
 
 lPlus :: LFunctionT
@@ -70,6 +71,11 @@ lPlus env = fmap (\args -> case args of
     [] -> Number 0
     nums ->  foldr (\(Number x) (Number y) -> Number (x + y)) (Number 0) nums)
 
+lMinus :: LFunctionT
+lMinus env = fmap (\args -> case args of
+    [] -> Number 0
+    nums ->  foldr (\(Number x) (Number y) -> Number (x - y)) (Number 0) nums)
+    
 lTimes :: LFunctionT
 lTimes env = fmap (\args -> case args of
     [] -> Number 1
