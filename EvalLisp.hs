@@ -101,7 +101,8 @@ inscope env name = case lookup name env of
 
 
 lmapToList f (a:.Nil) = (f a : [])
-lmap f (a:.b) = (f a : lmapToList f b)
+lmapToList f (a:.b) = (f a : lmapToList f b)
+lmapToList f a = [f a]
 
 
 isTrue :: Environment -> LValue -> IO Bool
