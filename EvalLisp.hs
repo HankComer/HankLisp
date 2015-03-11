@@ -131,7 +131,7 @@ listDo env (Atom "assign":.Atom name:.body:.Nil) =  fmap (\(_, thing) -> (update
 listDo env (Atom name:.stuff) = case unsafeLookup name env of
     (LFunction func _) -> fmap (\a -> (env, a)) (func env $ fmap lispList (flipListIO $ map (eval env) (haskList stuff)))
        
-    a -> putStrLn "a nonexistent function got called?" >> return (env, (a:.stuff))
+    a -> return (env, (a:.stuff))
 
 listDo env ((argh:.blah):.rest) = listDo env (argh:.blah) >>= (\(_, thing) -> case thing of
     LFunction func _ -> fmap (\a -> (env, a)) (func env $ fmap lispList (flipListIO $ map (eval env) (haskList rest)))
