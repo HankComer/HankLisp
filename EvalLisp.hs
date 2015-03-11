@@ -20,12 +20,15 @@ cons :: LValue -> LValue -> LValue
 cons a b = a :. b
 
 lispList :: [LValue] -> LValue
+lispList ([]) = Nil
 lispList (a:[]) = a :. Nil
 lispList (a:as) = a :. lispList as
 
 haskList :: LValue -> [LValue]
+haskList Nil = []
 haskList (a:.Nil) = a:[]
 haskList (a:.b) = a : haskList b
+haskList (a) = [a]
 
 instance Show LValue where
     show (Atom str) = str
