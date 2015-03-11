@@ -1,10 +1,14 @@
 (defun trace (x) (car x (putLn (toString x))))
 
-(defun foo (y) (bar (trace (+ y 1))))
-
-(defun bar (z) (foo (trace (+ z 1))))
 
 (defun map (f xxs) (if (null xxs) xxs
     (flat (f (car xxs)) (map f (cdr xxs)))))
 
 (defun succ (x) (+ x 1))
+
+
+
+(defun inpair (x pair) (eq x (car pair)))
+
+(defun lookup (x pairs) (if (null pairs) nil
+    (if (inpair x (car pairs)) (cdr (car list)) (lookup x (cdr pairs)))))
