@@ -137,9 +137,7 @@ listDo env (Atom name:.stuff) = case unsafeLookup name env of
 listDo env ((argh:.blah):.rest) = listDo env (argh:.blah) >>= (\(_, thing) -> case thing of
     LFunction func _ -> fmap (\a -> (env, a)) (func env $ fmap lispList (flipListIO $ map (eval env) (haskList rest)))
     a -> return (env, (a:.rest)))
-listDo env (Number i:.rest) = return (env, (Number i :. rest))
-listDo env Nil = return (env, Nil)
-listDo env a = error $ "wtf " ++ show a
+listDo env a = return (env, a)
 
 
 lispEval :: (Environment, LValue) -> IO (Environment, LValue)
