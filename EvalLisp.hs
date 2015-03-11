@@ -6,8 +6,9 @@ import Control.Monad (join)
 
 type Environment = [(String, LValue)]
 
-type LFunctionT = Environment -> IO [LValue] -> IO LValue
+type LFunctionT = Environment -> IO LValue -> IO LValue
 
+infixr 7 :.
 data LValue = Atom String |
     Number Integer |
     LValue :. LValue |
@@ -82,9 +83,9 @@ deref env (Number i) = Number i
 
 createFunction :: Environment -> LValue -> LValue -> LValue
 createFunction env (a:.b) body = LFunction lispFunction metaData where
-    args = haskList (a:.b)
+    args = (a:.b)
     lispFunction :: LFunctionT
-    lispFunction env' args' = args' >>= (\args''-> fmap snd $ lispEval(zip (map extract args) args'' ++ env', body))
+    lispFunction env' args' = args' >>= (\args''-> fmap snd $ lispEval(zip (lmapToList extract args) (haskList args'') ++ env', body))
     metaData :: String
     metaData = show args ++ " -> " ++ show body
 
@@ -96,8 +97,8 @@ inscope env name = case lookup name env of
 
 
 
-lmap f (a:.Nil) = (f a :. Nil)
-lmap f (a:.b) = (f a :. lmap f b)
+lmapToList f (a:.Nil) = (f a : [])
+lmap f (a:.b) = (f a : lmapToList f b)
 
 
 isTrue :: Environment -> LValue -> IO Bool
@@ -125,12 +126,12 @@ listDo env (Atom "quote":.stuff) = return (env, stuff)
 listDo env (Atom "lambda":.args:.body:.Nil) = return (env, createFunction env args body)
 listDo env (Atom "assign":.Atom name:.body:.Nil) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), thing)) $ lispEval(env, body)
 listDo env (Atom name:.stuff) = case unsafeLookup name env of
-    (LFunction func _) -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) (haskList stuff)))
+    (LFunction func _) -> fmap (\a -> (env, a)) (func env $ fmap lispList (flipListIO $ map (eval env) (haskList stuff)))
        
     a -> putStrLn "a nonexistent function got called?" >> return (env, (a:.stuff))
 
 listDo env ((argh:.blah):.rest) = listDo env (argh:.blah) >>= (\(_, thing) -> case thing of
-    LFunction func _ -> fmap (\a -> (env, a)) (func env (flipListIO $ map (eval env) (haskList rest)))
+    LFunction func _ -> fmap (\a -> (env, a)) (func env $ fmap lispList (flipListIO $ map (eval env) (haskList rest)))
     a -> return (env, (a:.rest)))
 listDo env (Number i:.rest) = return (env, (Number i :. rest))
 listDo env Nil = return (env, Nil)
