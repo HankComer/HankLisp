@@ -67,49 +67,53 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("list", LFunction lList "(list x1 ... xn) -> (x1 ... xn)")]
 
 
+
+mapIOTuple :: Environment -> (LValue -> LValue) -> IO LValue -> IO (Environment, LValue)
+mapIOTuple env f val = fmap (\x -> (env, x)) (fmap f val)
+
 lPlus :: LFunctionT
-lPlus env = fmap (\args -> case haskList args of
+lPlus env = mapIOTuple env (\args -> case haskList args of
     [] -> Number 0
     nums ->  foldr (\(Number x) (Number y) -> Number (x + y)) (Number 0) nums)
 
 lMinus :: LFunctionT
-lMinus env = fmap (\args -> case haskList args of
+lMinus env = mapIOTuple env (\args -> case haskList args of
     [] -> Number 0
     nums ->  foldr (\(Number x) (Number y) -> Number (x - y)) (Number 0) nums)
     
 lTimes :: LFunctionT
-lTimes env = fmap (\args -> case haskList args of
+lTimes env = mapIOTuple env (\args -> case haskList args of
     [] -> Number 1
     nums -> foldr (\(Number x) (Number y) -> Number (x * y)) (Number 1) nums)
 
 lEval :: LFunctionT
 lEval env arghs = arghs >>= (\a -> case a of
-    thing:.Nil -> eval env thing)
+    thing:.Nil -> lispEval (env, thing))
 
 lList :: LFunctionT
-lList env args = args
+lList env args = fmap (\x -> (env, x)) args
 
 lCar :: LFunctionT
-lCar env = fmap (\stuff -> case stuff of
+lCar env = mapIOTuple env (\stuff -> case stuff of
     ((a:.b):.Nil) -> a
     (a:.b) -> a)
 
 lCdr :: LFunctionT
-lCdr env = fmap (\stuff -> case stuff of
+lCdr env = mapIOTuple env (\stuff -> case stuff of
     ((a:.b):.Nil) -> b
     (a:.b) -> b)
 
 lCons :: LFunctionT
-lCons env = fmap (\(a:.b:.Nil) -> (a:.b))
+lCons env = mapIOTuple env (\(a:.b:.Nil) -> (a:.b))
 
 lGetLine :: LFunctionT
-lGetLine env args = fmap Str getLine
+lGetLine env args = fmap (\x -> (env, x)) (fmap Str getLine)
 
 lPutLine :: LFunctionT
 lPutLine env args = args >>= (\args' -> fmap (const nil) $ putStrLn (unwords $ lmapToList extract args'))
 
 lEq :: LFunctionT
-lEq env = fmap (\args ->
+lEq env = mapIOTuple env (\args ->
     let
         blah (a:.b:.Nil) = a == b
         blah (a:.b:.xs) = (a == b) && (blah (b:.xs))
@@ -118,12 +122,12 @@ lEq env = fmap (\args ->
         False -> Nil)
 
 lConcat :: LFunctionT
-lConcat env = fmap (\args -> case args of
+lConcat env = mapIOTuple env (\args -> case args of
 --    (Cons stuff:Nil) -> Str $ concat (map extract stuff)
     _ -> Str $ concat (lmapToList extract args))
 
 lNull :: LFunctionT
-lNull env = fmap (\args -> case args of
+lNull env = mapIOTuple env (\args -> case args of
     Nil:.a -> Atom "T"
     a -> Nil)
 
@@ -132,24 +136,24 @@ lNot = lNull
 
 
 lStringP :: LFunctionT
-lStringP env = fmap (\args -> case args of
+lStringP env = mapIOTuple env (\args -> case args of
     (Str a:.Nil):.Nil -> Atom "T"
     other -> Nil)
 
 lToString :: LFunctionT
-lToString env = fmap (\args -> case args of
+lToString env = mapIOTuple env (\args -> case args of
     (Str s):.Nil -> Str s
     (Atom a):.Nil -> Str a
     a:.Nil -> Str $ show a)
 
 lFlat :: LFunctionT
-lFlat env = fmap (\args -> lispList $ concat (lmapToList toList args)) where
+lFlat env = mapIOTuple env (\args -> lispList $ concat (lmapToList toList args)) where
     toList :: LValue -> [LValue]
     toList (a:.b) = haskList (a:.b)
     toList a = [a]
     
 lSubStr :: LFunctionT
-lSubStr env = fmap (\args -> case args of
+lSubStr env = mapIOTuple env (\args -> case args of
     (Str str):.(Number start):.Nil -> subStrSafe str (fromInteger start) (length str)
     (Str str):.(Number start):.(Number end):.Nil -> subStrSafe str (fromInteger start) (fromInteger end)
     a -> Str $ "Failure: bad args given: " ++ show a)
@@ -164,7 +168,7 @@ printDir :: Environment -> IO ()
 printDir env = putStrLn (unlines $ map (\(x, y) -> x ++ " " ++ show y) env)
 
 lLessEq :: LFunctionT
-lLessEq env = fmap (\args -> case isSorted (haskList args) of
+lLessEq env = mapIOTuple env (\args -> case isSorted (haskList args) of
     True -> Atom "T"
     False -> Nil)
 
