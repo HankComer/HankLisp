@@ -11,4 +11,4 @@
 (defun inpair (x pair) (eq x (car pair)))
 
 (defun lookup (x pairs) (if (null pairs) nil
-    (if (inpair x (car pairs)) (cdr (car list)) (lookup x (cdr pairs)))))
+    (if (inpair x (car pairs)) (cdr (car pairs)) (lookup x (cdr pairs)))))
