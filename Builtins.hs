@@ -44,12 +44,12 @@ stdEnv :: Environment
 stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("*", LFunction lTimes "(* x1 x2... xn) -> product of x1 thru xn"),
     ("eval", LFunction lEval "(eval something) -> unquoted 'something'"),
-    ("car", LFunction lCar "(car a b) -> a, or (car (a b)) -> a"),
-    ("cdr", LFunction lCdr "(cdr a b) -> (b), or (cdr (a b)) -> (b)"),
-    ("cons", LFunction lCons "(cons x1 x2... xn) -> (x1 x2... xn), not evaluating"),
+    ("car", LFunction lCar "(car (a b)) -> a"),
+    ("cdr", LFunction lCdr "(cdr (a b)) -> (b)"),
+    ("cons", LFunction lCons "(cons x1 x2) -> (x1 x2)"),
     ("get", LFunction lGetLine "(get) -> a single string from input"),
     ("putLn", LFunction lPutLine "(putLn x1 x2... xn) -> writes x1 x2.. xn to stdout, separated by spaces"),
-    ("nil", Cons []),
+    ("nil", Nil),
     ("=", LFunction lEq "(= x1 x2... xn) -> T if all are equal, else nil"),
     ("eq", LFunction lEq "(eq x1 x2... xn) -> T if all are equal, else nil"),
     ("write", LFunction lWriteFile "(write fname x1... xn) -> writes x1 thru xn joined by spaces to fname"),
@@ -63,67 +63,69 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("not", LFunction lNot "(not arg) -> logical negation of arg"),
     ("substr", LFunction lSubStr "(substr str start [end]) -> the string from index start onwards to end"),
     ("<=", LFunction lLessEq "(<= x1 x2 ... xn) -> whether x1 <= x2 <= ... xn"),
-    ("-", LFunction lMinus "(- x1 x2 ... xn) -> foldr (-) 0 [x1 x2... xn]")]
+    ("-", LFunction lMinus "(- x1 x2 ... xn) -> foldr (-) 0 [x1 x2... xn]"),
+    ("list", LFunction lList "(list x1 ... xn) -> (x1 ... xn)")]
 
 
 lPlus :: LFunctionT
-lPlus env = fmap (\args -> case args of
+lPlus env = fmap (\args -> case haskList args of
     [] -> Number 0
     nums ->  foldr (\(Number x) (Number y) -> Number (x + y)) (Number 0) nums)
 
 lMinus :: LFunctionT
-lMinus env = fmap (\args -> case args of
+lMinus env = fmap (\args -> case haskList args of
     [] -> Number 0
     nums ->  foldr (\(Number x) (Number y) -> Number (x - y)) (Number 0) nums)
     
 lTimes :: LFunctionT
-lTimes env = fmap (\args -> case args of
+lTimes env = fmap (\args -> case haskList args of
     [] -> Number 1
     nums -> foldr (\(Number x) (Number y) -> Number (x * y)) (Number 1) nums)
 
 lEval :: LFunctionT
 lEval env arghs = arghs >>= (\a -> case a of
-    thing:_ -> eval env thing)
+    thing:.Nil -> eval env thing)
 
+lList :: LFunctionT
+lList env args = args
 
 lCar :: LFunctionT
 lCar env = fmap (\stuff -> case stuff of
-    (a:rest:[]) -> a
-    (Cons (a:as):rest) -> a
-    (a:rest) -> a)
+    ((a:.b):.Nil) -> a
+    (a:.b) -> a)
 
 lCdr :: LFunctionT
 lCdr env = fmap (\stuff -> case stuff of
-    (Cons (a:as):rest) -> Cons as
-    (a:rest) -> Cons rest)
+    ((a:.b):.Nil) -> b
+    (a:.b) -> b)
 
 lCons :: LFunctionT
-lCons env = fmap Cons
+lCons env = fmap (\(a:.b:.Nil) -> (a:.b))
 
 lGetLine :: LFunctionT
 lGetLine env args = fmap Str getLine
 
 lPutLine :: LFunctionT
-lPutLine env args = args >>= (\args' -> fmap (const nil) $ putStrLn (unwords $ map extract args'))
+lPutLine env args = args >>= (\args' -> fmap (const nil) $ putStrLn (unwords $ lmapToList extract args'))
 
 lEq :: LFunctionT
 lEq env = fmap (\args ->
     let
-        blah (a:b:[]) = a == b
-        blah (a:b:xs) = (a == b) && (blah (b:xs))
+        blah (a:.b:.Nil) = a == b
+        blah (a:.b:.xs) = (a == b) && (blah (b:.xs))
     in case blah args of
         True -> Atom "T"
-        False -> Cons [])
+        False -> Nil)
 
 lConcat :: LFunctionT
 lConcat env = fmap (\args -> case args of
-    (Cons stuff:[]) -> Str $ concat (map extract stuff)
-    _ -> Str $ concat (map extract args))
+--    (Cons stuff:Nil) -> Str $ concat (map extract stuff)
+    _ -> Str $ concat (lmapToList extract args))
 
 lNull :: LFunctionT
 lNull env = fmap (\args -> case args of
-    (Cons []):other -> Atom "T"
-    other -> Cons [])
+    Nil:.a -> Atom "T"
+    a -> Nil)
 
 lNot :: LFunctionT
 lNot = lNull
@@ -131,27 +133,26 @@ lNot = lNull
 
 lStringP :: LFunctionT
 lStringP env = fmap (\args -> case args of
-    (Str a):other -> Atom "T"
-    other -> nil)
+    (Str a:.Nil):.Nil -> Atom "T"
+    other -> Nil)
 
 lToString :: LFunctionT
 lToString env = fmap (\args -> case args of
-    (Str s):other -> Str s
-    (Atom a):other -> Str a
-    (Cons s):other -> Str $ show s
-    (Number i):other -> Str $ show i)
+    (Str s):.Nil -> Str s
+    (Atom a):.Nil -> Str a
+    a:.Nil -> Str $ show a)
 
 lFlat :: LFunctionT
-lFlat env = fmap (\args -> Cons $ concat (map toList args)) where
+lFlat env = fmap (\args -> lispList $ concat (lmapToList toList args)) where
     toList :: LValue -> [LValue]
-    toList (Cons stuff) = stuff
+    toList (a:.b) = haskList (a:.b)
     toList a = [a]
     
 lSubStr :: LFunctionT
 lSubStr env = fmap (\args -> case args of
-    (Str str):(Number start):[] -> subStrSafe str (fromInteger start) (length str)
-    (Str str):(Number start):(Number end):rest -> subStrSafe str (fromInteger start) (fromInteger end)
-    a -> Str $ "Failure: bad args given")
+    (Str str):.(Number start):.Nil -> subStrSafe str (fromInteger start) (length str)
+    (Str str):.(Number start):.(Number end):.Nil -> subStrSafe str (fromInteger start) (fromInteger end)
+    a -> Str $ "Failure: bad args given: " ++ show a)
 
 subStrSafe :: String -> Int -> Int -> LValue
 subStrSafe str start end = if (start > -1) && (end >= start) && (end <= length str)
@@ -163,9 +164,9 @@ printDir :: Environment -> IO ()
 printDir env = putStrLn (unlines $ map (\(x, y) -> x ++ " " ++ show y) env)
 
 lLessEq :: LFunctionT
-lLessEq env = fmap (\args -> case isSorted args of
+lLessEq env = fmap (\args -> case isSorted (haskList args) of
     True -> Atom "T"
-    False -> nil)
+    False -> Nil)
 
 --Taken from Data.List.Ordered
 isSorted :: Ord a => [a] -> Bool
@@ -177,12 +178,12 @@ isSorted (x:y:zs) = (x <= y) && isSorted (y:zs)
 
 lReadFile :: LFunctionT
 lReadFile env args = args >>= (\args' -> case args' of
-    (Str fname):other -> fmap Str (readFile fname)
-    badArg:other -> return $ Str ("Failure: " ++ show badArg ++ " is not a string or atom")
-    [] -> return $ Str "Failure: no file specified to be read")
+    (Str fname):.Nil -> fmap Str (readFile fname)
+    badArg:.Nil -> return $ Str ("Failure: " ++ show badArg ++ " is not a string or atom")
+    Nil -> return $ Str "Failure: no file specified to be read")
 
 lWriteFile :: LFunctionT
 lWriteFile env args = args >>= (\args' -> case args' of
-    (Str fname):other -> writeFile fname (unwords $ map extract other) >> return nil
-    badArg:blah:other -> return $ Str ("Failure: " ++ show badArg ++ " is not a string or atom")
-    [] -> return $ Str "Failure: no file specified to be written")
+    (Str fname):.rest -> writeFile fname (unwords $ lmapToList extract rest) >> return Nil
+    badArg:.blah -> return $ Str ("Failure: " ++ show badArg ++ " is not a string or atom")
+    Nil -> return $ Str "Failure: no file specified to be written")
