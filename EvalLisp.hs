@@ -33,7 +33,7 @@ haskList (a) = [a]
 instance Show LValue where
     show (Atom str) = str
     show (Number i) = show i
-    show Nil = ""
+    show Nil = "()"
     show (a:.b) = "(" ++ (unwords $ map show (haskList (a:.b))) ++ ")"
     show (LFunction func meta) = "function " ++ meta
     show (Str str) = show str
