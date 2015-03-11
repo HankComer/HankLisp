@@ -46,7 +46,7 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("eval", LFunction lEval "(eval something) -> unquoted 'something'"),
     ("car", LFunction lCar "(car (a b)) -> a"),
     ("cdr", LFunction lCdr "(cdr (a b)) -> (b)"),
-    ("cons", LFunction lCons "(cons x1 x2) -> (x1 x2), not evaluating"),
+    ("cons", LFunction lCons "(cons x1 x2) -> (x1 x2)"),
     ("get", LFunction lGetLine "(get) -> a single string from input"),
     ("putLn", LFunction lPutLine "(putLn x1 x2... xn) -> writes x1 x2.. xn to stdout, separated by spaces"),
     ("nil", Nil),
@@ -63,7 +63,8 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("not", LFunction lNot "(not arg) -> logical negation of arg"),
     ("substr", LFunction lSubStr "(substr str start [end]) -> the string from index start onwards to end"),
     ("<=", LFunction lLessEq "(<= x1 x2 ... xn) -> whether x1 <= x2 <= ... xn"),
-    ("-", LFunction lMinus "(- x1 x2 ... xn) -> foldr (-) 0 [x1 x2... xn]")]
+    ("-", LFunction lMinus "(- x1 x2 ... xn) -> foldr (-) 0 [x1 x2... xn]"),
+    ("list", LFunction lList "(list x1 ... xn) -> (x1 ... xn)")]
 
 
 lPlus :: LFunctionT
@@ -90,10 +91,12 @@ lList env args = args
 
 lCar :: LFunctionT
 lCar env = fmap (\stuff -> case stuff of
+    ((a:.b):.Nil) -> a
     (a:.b) -> a)
 
 lCdr :: LFunctionT
 lCdr env = fmap (\stuff -> case stuff of
+    ((a:.b):.Nil) -> b
     (a:.b) -> b)
 
 lCons :: LFunctionT
