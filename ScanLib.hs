@@ -56,10 +56,3 @@ clausesDoStr clauses str = clausesDoStr' clauses str (0, ([], []))
 
 
 
-readStr :: Reader String
-readStr str = read str
-
-scanStrClauses = [
-    Clause 0 (== '"') append 1,
-    Clause 1 (/= '"') append 1,
-    Clause 1 (== '"') (appendEmit readStr) 0]
