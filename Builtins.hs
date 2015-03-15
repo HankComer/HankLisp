@@ -3,6 +3,11 @@ import EvalLisp
 import ParseLisp
 
 
+
+addEnv :: Environment -> IO LValue -> IO (Environment, LValue)
+addEnv env arg = fmap (\a -> (env, a)) arg
+
+
 repl = repl' "stdin" stdEnv
 
 repl' :: String -> Environment -> IO ()
@@ -110,7 +115,7 @@ lGetLine :: LFunctionT
 lGetLine env args = fmap (\x -> (env, x)) (fmap Str getLine)
 
 lPutLine :: LFunctionT
-lPutLine env args = args >>= (\args' -> fmap (const nil) $ putStrLn (unwords $ lmapToList extract args'))
+lPutLine env args = (addEnv env) $ args >>= (\args' -> fmap (const nil) $ putStrLn (unwords $ lmapToList extract args'))
 
 lEq :: LFunctionT
 lEq env = mapIOTuple env (\args ->
@@ -123,7 +128,6 @@ lEq env = mapIOTuple env (\args ->
 
 lConcat :: LFunctionT
 lConcat env = mapIOTuple env (\args -> case args of
---    (Cons stuff:Nil) -> Str $ concat (map extract stuff)
     _ -> Str $ concat (lmapToList extract args))
 
 lNull :: LFunctionT
@@ -181,13 +185,13 @@ isSorted (x:y:zs) = (x <= y) && isSorted (y:zs)
 
 
 lReadFile :: LFunctionT
-lReadFile env args = args >>= (\args' -> case args' of
+lReadFile env args = (addEnv env) $ args >>= (\args' -> case args' of
     (Str fname):.Nil -> fmap Str (readFile fname)
     badArg:.Nil -> return $ Str ("Failure: " ++ show badArg ++ " is not a string or atom")
-    Nil -> return $ Str "Failure: no file specified to be read")
+    Nil -> return $ Nil)
 
 lWriteFile :: LFunctionT
-lWriteFile env args = args >>= (\args' -> case args' of
+lWriteFile env args = (addEnv env) $ args >>= (\args' -> case args' of
     (Str fname):.rest -> writeFile fname (unwords $ lmapToList extract rest) >> return Nil
     badArg:.blah -> return $ Str ("Failure: " ++ show badArg ++ " is not a string or atom")
     Nil -> return $ Str "Failure: no file specified to be written")
