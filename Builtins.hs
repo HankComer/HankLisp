@@ -141,7 +141,7 @@ lNot = lNull
 
 lStringP :: LFunctionT
 lStringP env = mapIOTuple env (\args -> case args of
-    (Str a:.Nil):.Nil -> Atom "T"
+    (Str a):.Nil -> Atom "T"
     other -> Nil)
 
 lToString :: LFunctionT
