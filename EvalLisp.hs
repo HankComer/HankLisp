@@ -61,11 +61,12 @@ extract (Atom a) = a
 extract (Str a) = a
 extract (Number n) = show n
 
-tok2Val :: LToken -> LValue
+tok2Val :: LType -> LValue
 tok2Val (LAtom a) = Atom a
 tok2Val (LInt i) = Number i
 tok2Val (LList ts) = lispList (map tok2Val ts)
 tok2Val (LString s) = Str s
+tok2Val NilT = Nil
 
 toks2Vals = map tok2Val
 

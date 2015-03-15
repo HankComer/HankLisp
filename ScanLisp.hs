@@ -8,20 +8,20 @@ import Data.List (intersperse)
 
 data LispToken = LParen
     | RParen
-    | LString String
-    | LInt Integer
-    | LAtom String deriving (Show, Eq)
+    | LStringT String
+    | LIntT Integer
+    | LAtomT String deriving (Show, Eq)
 
 
 
 readStr :: Reader LispToken
-readStr str = LString (read str)
+readStr str = LStringT (read str)
 
 readAtom :: Reader LispToken
-readAtom a = LAtom a
+readAtom a = LAtomT a
 
-readLInt :: Reader LispToken
-readLInt str = LInt (read str)
+readLIntT :: Reader LispToken
+readLIntT str = LIntT (read str)
 
 readLParen :: Reader LispToken
 readLParen = const LParen
@@ -42,7 +42,7 @@ scanLispClauses = [
     Clause 0 (== '-') append 2,
     Clause 0 (isDigit) append 3,
     Clause 2 (isDigit) append 3,
-    Clause 3 (not . isDigit) (emit readLInt) 0,
+    Clause 3 (not . isDigit) (emitPush readLIntT) 0,
     Clause 0 (isSpace) ignore 0,
     Clause 0 (const True) append 4,
     Clause 4 (not . isSpace) append 4,
@@ -67,4 +67,7 @@ fixParens text = let
     in (fixLeftParens . fixRightParens) (text ++ " ")
 
 scanLispText text = clausesDoStr scanLispClauses (fixParens text)
+
+tokenize text = case scanLispText text of
+    (_, (_, _, stuff)) -> stuff
 

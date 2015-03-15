@@ -1,13 +1,19 @@
 module ParseLisp where
+import ScanLisp
 import Data.List (intersperse)
 
+data LType = LList [LType]
+    | LInt Integer
+    | LString String
+    | LAtom String
+    | NilT deriving (Show, Eq)
 
-data LToken = LAtom String |
-    LInt Integer |
-    LList [LToken] |
-    LString String deriving (Show, Eq)
 
-type Parser a = [String] -> Maybe (a, [String])
+convert (LIntT a) = LInt a
+convert (LStringT a) = LString a
+convert (LAtomT a) = LAtom a
+
+type Parser a = [LispToken] -> Maybe (a, [LispToken])
 
 
 
@@ -18,63 +24,59 @@ prependFst thing (Just (stuff, b)) = (thing:stuff, b)
 
 
 
-listParse :: Parser [LToken]
-listParse (")":rest) = Just ([], rest)
+listParse :: Parser [LType]
+listParse (RParen:rest) = Just ([], rest)
 listParse text = case ultimateParse text of
     Just (thing, rest) -> Just $ prependFst thing (listParse rest)
     Nothing -> Just ([], text)
 
 
 
-parseApp :: Parser LToken
-parseApp ("(":"if":rest) =
+parseApp :: Parser LType
+parseApp (LParen:(LAtomT "if"):rest) =
     let
         Just (cond, rest1) = ultimateParse rest
         Just (t, rest2) = ultimateParse rest1
         Just (f, rest3) = ultimateParse rest2
     in Just (LList [LAtom "if", cond, t, f], rest3)
     
-parseApp ("(":"define":name:body) = case listParse body of 
-    Just (stuff, rest) -> Just (LList (LAtom "define" : LAtom name : stuff), rest)
+parseApp (LParen:(LAtomT "define"):name:body) = case listParse body of 
+    Just (stuff, rest) -> Just (LList (LAtom "define" : convert name : stuff), rest)
 
-parseApp ("(":"assign":name:body) = case listParse body of 
-    Just (stuff, rest) -> Just (LList (LAtom "assign" : LAtom name : stuff), rest)
+parseApp (LParen:(LAtomT "assign"):name:body) = case listParse body of 
+    Just (stuff, rest) -> Just (LList (LAtom "assign" : convert name : stuff), rest)
 
-parseApp ("(":"lambda":rest) =
+parseApp (LParen:(LAtomT "lambda"):rest) =
     let
         Just (args, rest1) = listParse (tail rest)
         Just (body, rest2) = listParse (tail rest1)
     in Just (LList [LAtom "lambda", LList args, LList body], rest2)
 
-parseApp ("(":"defun":name:rest) =
+parseApp (LParen:(LAtomT "defun"):name:rest) =
     let
         Just (args, rest1) = listParse (tail rest)
         Just (body, rest2) = listParse (tail rest1)
-    in Just (LList [LAtom "assign", LAtom name, LList [LAtom "lambda", LList args, LList body]], rest2)
+    in Just (LList [LAtom "assign", convert name, LList [LAtom "lambda", LList args, LList body]], rest2)
 
-parseApp ("(":"quote":stuff) = case listParse stuff of
+parseApp (LParen:(LAtomT "quote"):stuff) = case listParse stuff of
     Just (thing, rest) -> Just (LList (LAtom "quote" : thing), rest)
 
-parseApp ("(":"(":rest) = case parseApp ("(":rest) of
+parseApp (LParen:LParen:rest) = case parseApp (LParen:rest) of
     Just (LList thing, rest1) -> case listParse rest1 of
         Just (thing1, rest2) -> Just (LList (LList thing:thing1), rest2)
     Just (thing, rest1) -> error $ "check parseApp, the one that matches (( " ++ show thing
 
-parseApp ("(":")":rest) = Just (LList [], rest)
+parseApp (LParen:RParen:rest) = Just (NilT, rest)
 
-parseApp ("(":name:args) = case listParse args of
+parseApp (LParen:(LAtomT name):args) = case listParse args of
     Just (thing, rest) -> Just (LList (LAtom name : thing), rest)
     Nothing -> Nothing
 
 parseApp _ = Nothing
 
 
-parsePrim :: Parser LToken
-parsePrim (str:strs) = case (reads str) :: [(Integer, String)] of
-    [(a, "")] -> Just (LInt a, strs)
-    [] -> case (reads str) :: [(String, String)] of
-        [(a, "")] -> Just (LString a, strs)
-        [] -> Just (LAtom str, strs)
+parsePrim :: Parser LType
+parsePrim (foo:rest) = Just (convert foo, rest)
 parsePrim [] = Nothing
 
 ultimateParse text = case parseApp text of
@@ -83,9 +85,9 @@ ultimateParse text = case parseApp text of
 
 
 
-parseString :: String -> [LToken]
+parseString :: String -> [LType]
 parseString str = doThing (tokenize str) where
-    doThing :: [String] -> [LToken]
+    doThing :: [LispToken] -> [LType]
     doThing [] = []
     doThing strs =  case ultimateParse strs of
         Just (stuff, []) -> [stuff]
@@ -93,19 +95,5 @@ parseString str = doThing (tokenize str) where
         Nothing -> error $ "parsing " ++ (show str) ++ " failed"
 
 
-splitThing :: Eq a => a -> [a] -> [[a]]
-splitThing a [] = []
-splitThing a s = cons (case break (== a) s of
-    (l, s') -> (l, case s' of
-        [] -> []
-        _:s''   -> splitThing a s''))
-    where
-        cons (h, t) = h : t
 
-rightParens = splitThing ')'
-leftParens = splitThing '('
-tokenize :: String -> [String]
-tokenize text = let
-    fixLeftParens str = concat $ intersperse " ( " (leftParens str)
-    fixRightParens str = concat $ intersperse " ) " (rightParens str)
-    in (words . fixLeftParens . fixRightParens) (text ++ " ")
+

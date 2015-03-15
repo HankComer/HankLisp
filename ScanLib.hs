@@ -11,7 +11,7 @@ module ScanLib where
 data Clause a = Clause Int (Char -> Bool) (Action a) Int
 
 
-type Status a = (String, [a])
+type Status a = (Maybe Char, String, [a])
 
 
 type Action a = Status a -> Char -> Status a
@@ -19,13 +19,16 @@ type Action a = Status a -> Char -> Status a
 type Reader a = String -> a
 
 append :: Action a
-append (buff, tokens) char = (buff ++ [char], tokens)
+append (Nothing, buff, tokens) char = (Nothing, buff ++ [char], tokens)
 
 appendEmit :: Reader a -> Action a
-appendEmit reader (buff, tokens) char = ([], tokens ++ [reader (buff ++ [char])])
+appendEmit reader (Nothing, buff, tokens) char = (Nothing, [], tokens ++ [reader (buff ++ [char])])
 
-emit :: Reader a -> Action a
-emit reader (buff, tokens) char = ([], tokens ++ [reader buff])
+emitPush :: Reader a -> Action a
+emitPush reader (Nothing, buff, tokens) char = (Just char, [], tokens ++ [reader buff])
+
+emit reader (Nothing, buff, tokens) char = (Nothing, [], tokens ++ [reader buff])
+
 
 ignore :: Action a
 ignore a char = a
@@ -41,6 +44,7 @@ matchesClause (state, char) (Clause cond predicate _ _) = (state == cond) && pre
 
 clausesDo :: [Clause a] -> Char -> (Int, Status a) -> (Int, Status a)
 clausesDo [] _ thing = thing
+clausesDo clauses char (state, (Just char', buff, tokens)) = clausesDo clauses char (clausesDo clauses char' (0, (Nothing, buff, tokens)))
 clausesDo (clause:clauses) char (state, status) | matchesClause (state, char) clause = clauseDo clause char (state, status)
     | otherwise = clausesDo clauses char (state, status)
 
@@ -52,7 +56,7 @@ clausesDoStr' clauses "" thing = thing
 clausesDoStr' clauses (char:chars) thing = clausesDoStr' clauses chars (clausesDo clauses char thing)
 
 clausesDoStr :: [Clause a] -> String -> (Int, Status a)
-clausesDoStr clauses str = clausesDoStr' clauses str (0, ([], []))
+clausesDoStr clauses str = clausesDoStr' clauses str (0, (Nothing, [], []))
 
 
 
