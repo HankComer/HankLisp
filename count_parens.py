@@ -16,3 +16,7 @@ def count_parentheses(text):
     else:
         print "your parentheses are balanced"
         
+def main():
+    count_parentheses(raw_input("please enter text: "))
+if __name__ == "__main__":
+    main()

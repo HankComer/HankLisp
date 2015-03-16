@@ -92,7 +92,8 @@ parseString str = doThing (tokenize str) where
     doThing :: [LispToken] -> [LType]
     doThing [] = []
     doThing strs =  case ultimateParse strs of
-        Just (stuff, []) -> [stuff]
+        Just (stuff, [RParen]) -> []
+        Just (stuff, [LParen]) -> [stuff]
         Just (stuff, rest) -> stuff : doThing rest
         Nothing -> error $ "parsing " ++ (show str) ++ " failed"
 
