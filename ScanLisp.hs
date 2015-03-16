@@ -68,6 +68,8 @@ fixParens text = let
 
 scanLispText text = clausesDoStr scanLispClauses (fixParens text)
 
-tokenize text = case scanLispText text of
+tokenize text = case scanLispText (removeComments text) of
     (_, (_, _, stuff)) -> stuff
+
+removeComments text = unlines $ map (takeWhile (/= ';')) (lines text)
 
