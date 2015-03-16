@@ -14,6 +14,13 @@ data LispToken = LParen
 
 
 
+unread :: LispToken -> String
+unread LParen = "("
+unread RParen = ")"
+unread (LStringT foo) = show foo
+unread (LIntT bar) = show bar
+unread (LAtomT baz) = baz
+
 readStr :: Reader LispToken
 readStr str = LStringT (read str)
 
@@ -72,4 +79,8 @@ tokenize text = case scanLispText (removeComments text) of
     (_, (_, _, stuff)) -> stuff
 
 removeComments text = unlines $ map (takeWhile (/= ';')) (lines text)
+
+
+untoken :: [LispToken] -> String
+untoken tokens = unwords $ map unread tokens
 
