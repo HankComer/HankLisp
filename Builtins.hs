@@ -23,6 +23,15 @@ repl' fname env = do
                     print value
                     repl' fname $ ("it", value) : env')
 
+loadBlocks :: String -> [LValue]
+loadBlocks text = toks2Vals $ parseString text
+
+execString env str = execBlocks env (loadBlocks str)
+
+evalStr env str = case loadBlocks str of
+    blocks -> (execBlocks env (init blocks)) >>= (\env -> lispEval(env, last blocks)) 
+
+
 loadForRepl :: String -> IO ()
 loadForRepl fname = do
     text <- readFile fname
@@ -70,7 +79,8 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("<=", LFunction lLessEq "(<= x1 x2 ... xn) -> whether x1 <= x2 <= ... xn"),
     ("-", LFunction lMinus "(- x1 x2 ... xn) -> foldr (-) 0 [x1 x2... xn]"),
     ("list", LFunction lList "(list x1 ... xn) -> (x1 ... xn)"),
-    ("runString", LFunction lRunString "(runString text) -> evaluates text as lisp source code")]
+    ("runString", LFunction lRunString "(runString text) -> evaluates text as lisp source code"),
+    ("dir", LFunction lDispEnv "(dir) -> prints out the current scope")]
 
 
 
@@ -172,6 +182,9 @@ subStrSafe str start end = if (start > -1) && (end >= start) && (end <= length s
 printDir :: Environment -> IO ()
 printDir env = putStrLn (unlines $ map (\(x, y) -> x ++ " " ++ show y) env)
 
+lDispEnv :: LFunctionT
+lDispEnv env _ = printDir env >> return (env, nil)
+
 lLessEq :: LFunctionT
 lLessEq env = mapIOTuple env (\args -> case isSorted (haskList args) of
     True -> Atom "T"
@@ -180,7 +193,7 @@ lLessEq env = mapIOTuple env (\args -> case isSorted (haskList args) of
 
 lRunString :: LFunctionT
 lRunString env args = args >>= (\arg -> case arg of
-    (Str str):._ -> lispEval(env, tok2Val $ head (parseString str)))
+    (Str str):._ -> evalStr env str)
 
 --Taken from Data.List.Ordered on Hackage
 isSorted :: Ord a => [a] -> Bool

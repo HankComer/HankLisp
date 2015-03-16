@@ -12,6 +12,7 @@ data LType = LList [LType]
 convert (LIntT a) = LInt a
 convert (LStringT a) = LString a
 convert (LAtomT a) = LAtom a
+convert foo = error (show foo ++ " isn't covered by convert")
 
 type Parser a = [LispToken] -> Maybe (a, [LispToken])
 
@@ -56,7 +57,8 @@ parseApp (LParen:(LAtomT "defun"):name:rest) =
     let
         Just (args, rest1) = listParse (tail rest)
         Just (body, rest2) = listParse (tail rest1)
-    in Just (LList [LAtom "assign", convert name, LList [LAtom "lambda", LList args, LList body]], rest2)
+    in case rest2 of
+        RParen:rest3 -> Just (LList [LAtom "assign", convert name, LList [LAtom "lambda", LList args, LList body]], rest3)
 
 parseApp (LParen:(LAtomT "quote"):stuff) = case listParse stuff of
     Just (thing, rest) -> Just (LList (LAtom "quote" : thing), rest)
