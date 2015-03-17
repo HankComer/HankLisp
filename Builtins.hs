@@ -16,7 +16,7 @@ repl' fname env = do
     line <- getLine
     handleCommands (env, fname) line (\str -> do
             let str' = (parseString str)
-            (env', value) <- if null str' then return (env, nil) else lispEval(env, tok2Val $ head str')
+            (env', value) <- if null str' then return (env, nil) else commitEnv $ lispEval(env, tok2Val $ head str')
             case value == nil of
                 True -> repl' fname env'
                 False -> do
@@ -25,6 +25,17 @@ repl' fname env = do
 
 loadBlocks :: String -> [LValue]
 loadBlocks text = toks2Vals $ parseString text
+
+dealWithPossibleChange :: Environment -> LValue -> Environment
+dealWithPossibleChange env (Change env') = env'
+dealWithPossibleChange env _ = env
+
+commitEnv = fmap (\(env, val) -> case val of
+   (Change env') -> (env', nil)
+   _ -> (env, val))
+
+
+
 
 execString env str = execBlocks env (loadBlocks str)
 
