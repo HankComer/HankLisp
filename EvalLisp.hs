@@ -119,7 +119,7 @@ isTrue env arg =  (eval env arg) >>= (isTrue' env) where
 
 
 eval :: Environment -> LValue -> IO LValue
-eval env thing = fmap snd $ lispEval(env, thing)
+eval env thing = (fmap snd) $ lispEval(env, thing)
 
 
 
@@ -130,7 +130,7 @@ listDo env (Atom "if":.cond:.thing1:.thing2:.Nil) = (isTrue env cond) >>= \p -> 
 
 listDo env (Atom "quote":.stuff) = return (env, stuff)
 listDo env (Atom "lambda":.args:.body:.Nil) = return (env, createFunction env args body)
-listDo env (Atom "assign":.Atom name:.body:.Nil) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), thing)) $ lispEval(env, body)
+listDo env (Atom "assign":.Atom name:.body:.Nil) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), nil)) $ lispEval(env, body)
 listDo env (Atom name:.stuff) = case unsafeLookup name env of
     (LFunction func _) -> fmap ((,) env) (func env $ fmap lispList (flipListIO $ map (eval env) (haskList stuff)))
        

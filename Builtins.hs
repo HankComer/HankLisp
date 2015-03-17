@@ -1,6 +1,7 @@
 module Builtins where
 import EvalLisp
 import ParseLisp
+import Data.Maybe (fromMaybe)
 
 
 
@@ -59,6 +60,7 @@ handleCommands (env, fname) str alt | null str = alt str
         [] -> putStrLn "unrecognized command" >> alt ""
         "d" -> printDir env >> alt ""
         "dir" -> printDir env >> alt ""
+        'i':'n':'f':'o':' ':rest -> print ((fromMaybe (Atom $ "atom " ++ rest)) (lookup rest env)) >> alt ""
         "reload" -> putStrLn "reloaded files" >> if (fname == "stdin") then repl else loadForRepl fname
         "r" -> putStrLn "reloaded files" >> if (fname == "stdin") then repl else loadForRepl fname
         "q" -> putStrLn "Leaving HankLisp."
