@@ -93,7 +93,8 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("runString", LFunction lRunString "(runString text) -> evaluates text as lisp source code"),
     ("dir", LFunction lDispEnv "(dir) -> prints out the current scope"),
     ("exec", LFunction lExec "(exec foo) -> evaluates foo, and returns the resulting environment to be made global"),
-    ("execString", LFunction lExecString "(execString str) parses and execs string")]
+    ("execString", LFunction lExecString "(execString str) parses and execs string"),
+    ("locals", LFunction lLocals "(locals) -> the current environment")]
 
 
 
@@ -212,7 +213,11 @@ lRunString env args = args >>= (\arg -> case arg of
 
 lExecString :: LFunctionT
 lExecString env args = args >>= (\arg -> case arg of
+    (Str str):.(Change namespace) -> (fmap (Change . fst)) $ (evalStr namespace str)
     (Str str):._ -> (fmap (Change . fst)) $ (evalStr env str))
+
+lLocals :: LFunctionT
+lLocals env _ = return $ Change env
 
 lExec :: LFunctionT
 lExec env arghs = arghs >>= (\a -> case a of
