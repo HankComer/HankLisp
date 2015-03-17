@@ -38,6 +38,7 @@ instance Show LValue where
     show (a:.b) = "(" ++ show a ++ " " ++ show b ++ ")"
     show (LFunction func meta) = "function " ++ meta
     show (Str str) = show str
+    show (Change env) = "environment: " ++ (show $ length env)  ++ " entries"
 
 instance Eq LValue where
     (Atom a) == (Atom b) = a == b
