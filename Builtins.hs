@@ -80,56 +80,57 @@ stdEnv = [("+", LFunction lPlus "(+ x1 x2... xn) -> sum of x1 thru xn"),
     ("-", LFunction lMinus "(- x1 x2 ... xn) -> foldr (-) 0 [x1 x2... xn]"),
     ("list", LFunction lList "(list x1 ... xn) -> (x1 ... xn)"),
     ("runString", LFunction lRunString "(runString text) -> evaluates text as lisp source code"),
-    ("dir", LFunction lDispEnv "(dir) -> prints out the current scope")]
+    ("dir", LFunction lDispEnv "(dir) -> prints out the current scope"),
+    ("exec", LFunction lExec "(exec foo) -> evaluates foo, and returns the resulting environment to be made global"),
+    ("execString", LFunction lExecString "(execString str) parses and execs string")]
 
 
 
-mapIOTuple :: Environment -> (LValue -> LValue) -> IO LValue -> IO (Environment, LValue)
-mapIOTuple env f val = fmap (\x -> (env, x)) (fmap f val)
+
 
 lPlus :: LFunctionT
-lPlus env = mapIOTuple env (\args -> case haskList args of
+lPlus env = fmap (\args -> case haskList args of
     [] -> Number 0
     nums ->  foldr (\(Number x) (Number y) -> Number (x + y)) (Number 0) nums)
 
 lMinus :: LFunctionT
-lMinus env = mapIOTuple env (\args -> case haskList args of
+lMinus env = fmap (\args -> case haskList args of
     [] -> Number 0
     nums ->  foldr (\(Number x) (Number y) -> Number (x - y)) (Number 0) nums)
     
 lTimes :: LFunctionT
-lTimes env = mapIOTuple env (\args -> case haskList args of
+lTimes env = fmap (\args -> case haskList args of
     [] -> Number 1
     nums -> foldr (\(Number x) (Number y) -> Number (x * y)) (Number 1) nums)
 
 lEval :: LFunctionT
 lEval env arghs = arghs >>= (\a -> case a of
-    thing:.Nil -> lispEval (env, thing))
+    thing:.Nil -> (fmap snd) $ lispEval (env, thing))
 
 lList :: LFunctionT
-lList env args = fmap (\x -> (env, x)) args
+lList env args = args
 
 lCar :: LFunctionT
-lCar env = mapIOTuple env (\stuff -> case stuff of
+lCar env = fmap (\stuff -> case stuff of
     ((a:.b):.Nil) -> a
     (a:.b) -> a)
 
 lCdr :: LFunctionT
-lCdr env = mapIOTuple env (\stuff -> case stuff of
+lCdr env = fmap (\stuff -> case stuff of
     ((a:.b):.Nil) -> b
     (a:.b) -> b)
 
 lCons :: LFunctionT
-lCons env = mapIOTuple env (\(a:.b:.Nil) -> (a:.b))
+lCons env = fmap (\(a:.b:.Nil) -> (a:.b))
 
 lGetLine :: LFunctionT
-lGetLine env args = fmap (\x -> (env, x)) (fmap Str getLine)
+lGetLine env args = (fmap Str getLine)
 
 lPutLine :: LFunctionT
-lPutLine env args = (addEnv env) $ args >>= (\args' -> fmap (const nil) $ putStrLn (unwords $ lmapToList extract args'))
+lPutLine env args = args >>= (\args' -> fmap (const nil) $ putStrLn (unwords $ lmapToList extract args'))
 
 lEq :: LFunctionT
-lEq env = mapIOTuple env (\args ->
+lEq env = fmap (\args ->
     let
         blah (a:.b:.Nil) = a == b
         blah (a:.b:.xs) = (a == b) && (blah (b:.xs))
@@ -138,11 +139,11 @@ lEq env = mapIOTuple env (\args ->
         False -> Nil)
 
 lConcat :: LFunctionT
-lConcat env = mapIOTuple env (\args -> case args of
+lConcat env = fmap (\args -> case args of
     _ -> Str $ concat (lmapToList extract args))
 
 lNull :: LFunctionT
-lNull env = mapIOTuple env (\args -> case args of
+lNull env = fmap (\args -> case args of
     Nil:.a -> Atom "T"
     a -> Nil)
 
@@ -153,24 +154,24 @@ lNot = lNull
 
 
 lStringP :: LFunctionT
-lStringP env = mapIOTuple env (\args -> case args of
+lStringP env = fmap (\args -> case args of
     (Str a):.Nil -> Atom "T"
     other -> Nil)
 
 lToString :: LFunctionT
-lToString env = mapIOTuple env (\args -> case args of
+lToString env = fmap (\args -> case args of
     (Str s):.Nil -> Str s
     (Atom a):.Nil -> Str a
     a:.Nil -> Str $ show a)
 
 lFlat :: LFunctionT
-lFlat env = mapIOTuple env (\args -> lispList $ concat (lmapToList toList args)) where
+lFlat env = fmap (\args -> lispList $ concat (lmapToList toList args)) where
     toList :: LValue -> [LValue]
     toList (a:.b) = haskList (a:.b)
     toList a = [a]
     
 lSubStr :: LFunctionT
-lSubStr env = mapIOTuple env (\args -> case args of
+lSubStr env = fmap (\args -> case args of
     (Str str):.(Number start):.Nil -> subStrSafe str (fromInteger start) (length str)
     (Str str):.(Number start):.(Number end):.Nil -> subStrSafe str (fromInteger start) (fromInteger end)
     a -> Str $ "Failure: bad args given: " ++ show a)
@@ -185,17 +186,26 @@ printDir :: Environment -> IO ()
 printDir env = putStrLn (unlines $ map (\(x, y) -> x ++ " " ++ show y) env)
 
 lDispEnv :: LFunctionT
-lDispEnv env _ = printDir env >> return (env, nil)
+lDispEnv env _ = printDir env >> return nil
 
 lLessEq :: LFunctionT
-lLessEq env = mapIOTuple env (\args -> case isSorted (haskList args) of
+lLessEq env = fmap (\args -> case isSorted (haskList args) of
     True -> Atom "T"
     False -> Nil)
 
 
 lRunString :: LFunctionT
 lRunString env args = args >>= (\arg -> case arg of
-    (Str str):._ -> evalStr env str)
+    (Str str):._ -> (fmap snd) $ evalStr env str)
+
+
+lExecString :: LFunctionT
+lExecString env args = args >>= (\arg -> case arg of
+    (Str str):._ -> (fmap (Change . fst)) $ (evalStr env str))
+
+lExec :: LFunctionT
+lExec env arghs = arghs >>= (\a -> case a of
+    thing:.Nil -> (fmap (Change . fst)) $ lispEval (env, thing))
 
 --Taken from Data.List.Ordered on Hackage
 isSorted :: Ord a => [a] -> Bool
@@ -206,13 +216,13 @@ isSorted (x:y:zs) = (x <= y) && isSorted (y:zs)
 
 
 lReadFile :: LFunctionT
-lReadFile env args = (addEnv env) $ args >>= (\args' -> case args' of
+lReadFile env args = args >>= (\args' -> case args' of
     (Str fname):.Nil -> fmap Str (readFile fname)
     badArg:.Nil -> return $ Str ("Failure: " ++ show badArg ++ " is not a string or atom")
     Nil -> return $ Nil)
 
 lWriteFile :: LFunctionT
-lWriteFile env args = (addEnv env) $ args >>= (\args' -> case args' of
+lWriteFile env args =  args >>= (\args' -> case args' of
     (Str fname):.rest -> writeFile fname (unwords $ lmapToList extract rest) >> return Nil
     badArg:.blah -> return $ Str ("Failure: " ++ show badArg ++ " is not a string or atom")
     Nil -> return $ Str "Failure: no file specified to be written")

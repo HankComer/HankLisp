@@ -6,7 +6,7 @@ import Control.Monad (join)
 
 type Environment = [(String, LValue)]
 
-type LFunctionT = Environment -> IO LValue -> IO (Environment, LValue)
+type LFunctionT = Environment -> IO LValue -> IO LValue
 
 infixr 7 :.
 data LValue = Atom String |
@@ -14,7 +14,8 @@ data LValue = Atom String |
     LValue :. LValue |
     LFunction LFunctionT String |
     Str String |
-    Nil
+    Nil |
+    Change Environment
 
 cons :: LValue -> LValue -> LValue
 cons a b = a :. b
@@ -89,7 +90,7 @@ createFunction :: Environment -> LValue -> LValue -> LValue
 createFunction env (a:.b) body = LFunction lispFunction metaData where
     args = (a:.b)
     lispFunction :: LFunctionT
-    lispFunction env' args' = args' >>= (\args''-> lispEval(zip (lmapToList extract args) (haskList args'') ++ env', body))
+    lispFunction env' args' = args' >>= (\args''-> (fmap snd) $ lispEval(zip (lmapToList extract args) (haskList args'') ++ env', body))
     metaData :: String
     metaData = show args ++ " -> " ++ show body
 
@@ -131,12 +132,12 @@ listDo env (Atom "quote":.stuff) = return (env, stuff)
 listDo env (Atom "lambda":.args:.body:.Nil) = return (env, createFunction env args body)
 listDo env (Atom "assign":.Atom name:.body:.Nil) =  fmap (\(_, thing) -> (updateEnvironment env (name, thing), thing)) $ lispEval(env, body)
 listDo env (Atom name:.stuff) = case unsafeLookup name env of
-    (LFunction func _) -> (func env $ fmap lispList (flipListIO $ map (eval env) (haskList stuff)))
+    (LFunction func _) -> fmap ((,) env) (func env $ fmap lispList (flipListIO $ map (eval env) (haskList stuff)))
        
     a -> return (env, (a:.stuff))
 
 listDo env ((argh:.blah):.rest) = listDo env (argh:.blah) >>= (\(_, thing) -> case thing of
-    LFunction func _ ->  (func env $ fmap lispList (flipListIO $ map (eval env) (haskList rest)))
+    LFunction func _ ->  fmap ((,) env) (func env $ fmap lispList (flipListIO $ map (eval env) (haskList rest)))
     a -> return (env, (a:.rest)))
 listDo env a = return (env, a)
 
